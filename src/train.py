@@ -18,6 +18,7 @@ Baseline'lar uchun feature'lar:
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,6 +41,10 @@ from src.features import FeatureEngineer
 from src.utils import get_logger, seed_everything, timer
 
 logger = get_logger(__name__)
+
+# make_lgbm_fit_kwargs() qasddan eski (lekin keng qo'llab-quvvatlanadigan) `eval_set`
+# parametrini ishlatadi — bu ogohlantirish shu qarorning kutilgan natijasi.
+warnings.filterwarnings("ignore", message=r"The argument 'eval_set' is deprecated")
 
 # Faqat CatBoost'ga xom holida beriladigan kategorial ustunlar (Faza 5) —
 # boshqa modellar uchun bular o'rniga features.py dagi *_enc/*_ord ustunlari ishlatiladi.
@@ -279,11 +284,18 @@ def build_catboost_model(cfg: Config, **overrides: Any):
 
 
 def make_lgbm_fit_kwargs(early_stopping_rounds: int) -> Callable[[pd.DataFrame, pd.Series], dict[str, Any]]:
-    """LightGBM 4.x sklearn API'sida ``eval_set`` o'rniga ``eval_X``/``eval_y`` tavsiya etiladi."""
+    """LightGBM early-stopping uchun ``eval_set`` beradi.
+
+    Qasddan yangi ``eval_X``/``eval_y`` (4.x) emas, eski ``eval_set`` ishlatiladi —
+    u ozgina eskirgan (``LGBMDeprecationWarning`` beradi) lekin deyarli barcha
+    LightGBM versiyalarida (jumladan Kaggle notebook muhitidagi ko'pincha eskiroq
+    versiyalarda) ishlaydi; ``eval_X``/``eval_y`` esa u yerda ``TypeError`` bilan
+    yiqiladi (haqiqiy hodisa — ``notebooks/04_kaggle_submission.ipynb`` da topilgan).
+    """
     def _fn(X_val: pd.DataFrame, y_val: pd.Series) -> dict[str, Any]:
         import lightgbm as lgb
 
-        return {"eval_X": X_val, "eval_y": y_val, "callbacks": [lgb.early_stopping(early_stopping_rounds, verbose=False)]}
+        return {"eval_set": [(X_val, y_val)], "callbacks": [lgb.early_stopping(early_stopping_rounds, verbose=False)]}
     return _fn
 
 
