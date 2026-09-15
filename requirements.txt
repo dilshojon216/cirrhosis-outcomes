@@ -1,0 +1,27 @@
+# Python 3.12
+
+# core
+pandas==3.0.5
+numpy==2.5.3
+scipy==1.18.1
+pyarrow==25.0.1
+pyyaml==6.0.3
+
+# modeling
+scikit-learn==1.9.1
+lightgbm==4.7.0
+xgboost==3.4.1
+catboost==1.2.10
+optuna==5.0.0
+
+# viz / notebooks
+matplotlib==3.11.2
+seaborn==0.13.2
+ipykernel==7.3.0
+
+# data download
+kaggle==2.2.4
+
+# dev
+pytest==9.1.1
+ruff==0.16.7

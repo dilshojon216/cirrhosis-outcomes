@@ -1,0 +1,5 @@
+# data/ ichidagi hamma narsa ignore, faqat papka strukturasi saqlanadi
+*
+!.gitignore
+!*/
+!*/.gitkeep

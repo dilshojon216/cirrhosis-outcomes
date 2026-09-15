@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+catboost_info/
+
+# Artefaktlar (papkalar .gitkeep orqali saqlanadi)
+models/*
+!models/.gitkeep
+outputs/**/*
+!outputs/*/
+!outputs/*/.gitkeep
+
+# Maxfiy
+kaggle.json
+.env
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
