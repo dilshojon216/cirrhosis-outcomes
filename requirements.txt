@@ -25,3 +25,4 @@ kaggle==2.2.4
 # dev
 pytest==9.1.1
 ruff==0.16.7
+nbconvert==7.17.1  # notebook'larni CLI'dan bajarish uchun (jupyter execute)

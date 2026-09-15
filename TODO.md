@@ -137,16 +137,16 @@ cirrhosis-outcomes/
 
 ### Faza 1 — EDA
 
-- [ ] Shape, dtypes, `df.info()`, null count har bir ustun bo'yicha
-- [ ] `Status` taqsimoti — sinf disbalansini raqamda ko'rish
-- [ ] Raqamli ustunlar histogrammasi — qaysilari skewed
-- [ ] Kategorial ustunlar bo'yicha `Status` nisbati (crosstab)
-- [ ] Korrelyatsiya matritsasi (raqamli ustunlar)
-- [ ] `N_Days` ning har bir sinf bo'yicha taqsimoti (boxplot)
-- [ ] Outlier'larni belgilash (`Bilirubin`, `Alk_Phos`, `Copper`)
-- [ ] Train vs test taqsimotini solishtirish (drift bormi)
-- [ ] Grafiklarni `outputs/figures/` ga saqlash
-- [ ] EDA xulosalarini notebook oxirida 5–7 punktda yozib qo'yish
+- [x] Shape, dtypes, `df.info()`, null count har bir ustun bo'yicha
+- [x] `Status` taqsimoti — sinf disbalansini raqamda ko'rish
+- [x] Raqamli ustunlar histogrammasi — qaysilari skewed
+- [x] Kategorial ustunlar bo'yicha `Status` nisbati (crosstab)
+- [x] Korrelyatsiya matritsasi (raqamli ustunlar)
+- [x] `N_Days` ning har bir sinf bo'yicha taqsimoti (boxplot)
+- [x] Outlier'larni belgilash (`Bilirubin`, `Alk_Phos`, `Copper`)
+- [x] Train vs test taqsimotini solishtirish (drift bormi)
+- [x] Grafiklarni `outputs/figures/` ga saqlash
+- [x] EDA xulosalarini notebook oxirida 5–7 punktda yozib qo'yish
 
 ### Faza 2 — Data qatlami
 
