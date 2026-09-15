@@ -159,13 +159,14 @@ cirrhosis-outcomes/
 
 ### Faza 3 — Feature engineering
 
-- [ ] `src/features.py`: `add_log_features()` — `Bilirubin`, `Copper`, `Alk_Phos`, `SGOT`, `Cholesterol`
-- [ ] `Age` ni yilga o'tkazish (`Age / 365.25`)
-- [ ] Kategorial encoding — ordinal (`Stage`, `Edema`) va binary (`Y/N` → 1/0)
-- [ ] Nisbat feature'lar: `Bilirubin/Albumin`, `SGOT/Alk_Phos`, `Copper/Age_years`
-- [ ] Klinik ball: `Ascites + Hepatomegaly + Spiders + Edema` yig'indisi
-- [ ] **fit faqat train'da, transform ikkalasida** — leakage'ni oldini olish
-- [ ] Har bir feature guruhini alohida yoqib/o'chirib CV'da tekshirish
+- [x] `src/features.py`: `add_log_features()` — `Bilirubin`, `Copper`, `Alk_Phos`, `SGOT`, `Cholesterol`
+- [x] `Age` ni yilga o'tkazish (`Age / 365.25`)
+- [x] Kategorial encoding — ordinal (`Stage`, `Edema`) va binary (`Y/N` → 1/0) — `Sex`/`Drug` ham binary sifatida qo'shildi; xom ustunlar CatBoost uchun saqlanadi
+- [x] Nisbat feature'lar: `Bilirubin/Albumin`, `SGOT/Alk_Phos`, `Copper/Age_years`
+- [x] Klinik ball: `Ascites + Hepatomegaly + Spiders + Edema` yig'indisi
+- [x] **fit faqat train'da, transform ikkalasida** — leakage'ni oldini olish — `FeatureEngineer` klassi (hozircha stateless, kelajakdagi encoder'lar uchun disiplina)
+- [x] Har bir feature guruhini alohida yoqib/o'chirib CV'da tekshirish — `build_features(df, cfg, groups=(...))`, qo'lda tekshirildi
+- [x] **Qo'shimcha (EDA #1 asosida):** `is_full_labs` / `n_missing_clinical` — blok-missing indikatori
 
 ### Faza 4 — Baseline
 
