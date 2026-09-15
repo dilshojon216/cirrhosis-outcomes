@@ -170,13 +170,16 @@ cirrhosis-outcomes/
 
 ### Faza 4 — Baseline
 
-- [ ] `src/train.py`: `StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)`
-- [ ] Dummy baseline — sinf chastotalari bilan log loss (pol raqami)
-- [ ] `LogisticRegression` baseline
-- [ ] `HistGradientBoostingClassifier` baseline
-- [ ] OOF ehtimolliklarni `outputs/oof/` ga saqlash
-- [ ] Har bir baseline CV log loss'ini jadvalga yozish
-- [ ] Birinchi submission yuborib, CV ↔ LB farqini o'lchash
+- [x] `src/train.py`: `StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)` — faqat `is_original==0` qatorlarda, original qatorlar hech qachon validatsiyaga tushmaydi
+- [x] Dummy baseline — sinf chastotalari bilan log loss (pol raqami)
+- [x] `LogisticRegression` baseline
+- [x] `HistGradientBoostingClassifier` baseline
+- [x] OOF ehtimolliklarni `outputs/oof/` ga saqlash
+- [x] Har bir baseline CV log loss'ini jadvalga yozish (6-bo'lim)
+- [ ] Birinchi submission yuborib, CV ↔ LB farqini o'lchash — `outputs/submissions/baseline_hgb.csv` tayyorlandi (HGB, to'liq train'ga fit qilingan), lekin **Kaggle'ga yuklash foydalanuvchi tomonidan qilinishi kerak** (Kaggle API kaliti bu muhitda sozlanmagan):
+  ```bash
+  .venv/bin/kaggle competitions submit -c multiclassificationtask -f outputs/submissions/baseline_hgb.csv -m "Faza 4 baseline: HGB"
+  ```
 
 ### Faza 5 — Model tuning
 
@@ -225,14 +228,15 @@ Har bir eksperimentdan keyin shu jadvalni to'ldirib boring:
 
 | # | Model | Feature'lar | Original data | CV log loss | LB log loss | Izoh |
 |---|---|---|---|---|---|---|
-| 0 | Dummy | — | yo'q | | | pol raqami |
-| 1 | LogReg | baza | yo'q | | | |
-| 2 | LightGBM | baza | yo'q | | | |
-| 3 | LightGBM | + log | yo'q | | | |
-| 4 | LightGBM | + log | ha | | | |
-| 5 | XGBoost | eng yaxshi | ha | | | |
-| 6 | CatBoost | eng yaxshi | ha | | | |
-| 7 | Blend | — | ha | | | |
+| 0 | Dummy | — | yo'q | 0.72352 ± 0.00043 | | pol raqami (nazariy: sinf chastotalari entropiyasi ≈0.722, mos keladi) |
+| 1 | LogReg | baza (30 raqamli ustun, median impute) | yo'q | 0.44363 ± 0.01052 | | |
+| 2 | HGB | baza (30 raqamli ustun, NaN'siz impute) | yo'q | 0.39543 ± 0.00844 | | `outputs/submissions/baseline_hgb.csv` tayyor, Kaggle'ga hali yuklanmadi |
+| 3 | LightGBM | baza | yo'q | | | |
+| 4 | LightGBM | + log | yo'q | | | |
+| 5 | LightGBM | + log | ha | | | |
+| 6 | XGBoost | eng yaxshi | ha | | | |
+| 7 | CatBoost | eng yaxshi | ha | | | |
+| 8 | Blend | — | ha | | | |
 
 ---
 
