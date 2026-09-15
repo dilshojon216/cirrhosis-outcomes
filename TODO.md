@@ -150,12 +150,12 @@ cirrhosis-outcomes/
 
 ### Faza 2 — Data qatlami
 
-- [ ] `src/data.py`: `load_raw()` — train/test o'qish, `id` ni index qilish
-- [ ] `encode_target()` — `C/CL/D` → `0/1/2`, teskari mapping ham
-- [ ] `load_original()` — UCI datasetni musobaqa ustunlariga moslashtirish
-- [ ] `merge_original()` — flag ustuni bilan (`is_original`), faqat train'ga
-- [ ] Null strategiyasi: qoldirish (LightGBM o'zi hal qiladi) yoki median — qaror yozib qo'yish
-- [ ] `processed/` ga parquet saqlash
+- [x] `src/data.py`: `load_raw()` — train/test o'qish, `id` ni index qilish
+- [x] `encode_target()` — `C/CL/D` → `0/1/2`, teskari mapping ham
+- [x] `load_original()` — UCI datasetni musobaqa ustunlariga moslashtirish
+- [x] `merge_original()` — flag ustuni bilan (`is_original`), faqat train'ga
+- [x] Null strategiyasi: qoldirish (LightGBM o'zi hal qiladi) yoki median — qaror yozib qo'yish — **qoldirish** tanlandi (sabab: `src/data.py` docstring, EDA #1 — null'lar blok holida MNAR, median soxta signal beradi)
+- [x] `processed/` ga parquet saqlash
 
 ### Faza 3 — Feature engineering
 
