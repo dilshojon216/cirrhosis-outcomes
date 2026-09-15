@@ -18,8 +18,10 @@ Baseline'lar uchun feature'lar:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -42,6 +44,9 @@ logger = get_logger(__name__)
 # Faqat CatBoost'ga xom holida beriladigan kategorial ustunlar (Faza 5) —
 # boshqa modellar uchun bular o'rniga features.py dagi *_enc/*_ord ustunlari ishlatiladi.
 RAW_CATEGORICAL_COLS = ["Drug", "Sex", "Ascites", "Hepatomegaly", "Spiders", "Edema"]
+# CatBoost xom ustunlarni oladi, shuning uchun ularning encode qilingan
+# nusxalari (features.py) CatBoost feature to'plamidan chiqarib tashlanadi.
+ENCODED_DUPLICATE_COLS = ["Ascites_enc", "Hepatomegaly_enc", "Spiders_enc", "Sex_enc", "Drug_enc", "Edema_ord"]
 META_COLS = {"fold", "is_original"}
 
 
@@ -49,6 +54,24 @@ def get_numeric_feature_cols(df: pd.DataFrame, cfg: Config) -> list[str]:
     """Raw kategorial va meta ustunlarni chiqarib, faqat raqamli feature'larni qaytaradi."""
     exclude = META_COLS | {cfg.data.target} | set(RAW_CATEGORICAL_COLS)
     return [c for c in df.columns if c not in exclude]
+
+
+def get_catboost_feature_cols(df: pd.DataFrame, cfg: Config) -> list[str]:
+    """Raqamli feature'lar + xom kategorial ustunlar (CatBoost ``cat_features`` uchun)."""
+    exclude = META_COLS | {cfg.data.target} | set(ENCODED_DUPLICATE_COLS)
+    return [c for c in df.columns if c not in exclude]
+
+
+def prepare_catboost_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """CatBoost kategorial ustunlardagi ``NaN``ni qabul qilmaydi (xato beradi) —
+    ``"missing"`` satr bilan to'ldiradi. Bu aslida foydali: ``src/data.py`` dagi
+    "to'ldirmaslik" qarori faqat RAQAMLI ustunlarga tegishli edi — kategorial
+    ustun uchun "missing" alohida kategoriya sifatida CatBoost'ning o'ziga
+    signal beradi (``is_full_labs`` bilan bir xil ma'lumot, boshqa shaklda).
+    """
+    df = df.copy()
+    df[RAW_CATEGORICAL_COLS] = df[RAW_CATEGORICAL_COLS].fillna("missing")
+    return df
 
 
 def make_folds(df: pd.DataFrame, cfg: Config) -> np.ndarray:
@@ -69,16 +92,24 @@ def make_folds(df: pd.DataFrame, cfg: Config) -> np.ndarray:
 
 
 def prepare_train_test(cfg: Config) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """train/test'ni yuklaydi, target'ni encode qiladi, (ixtiyoriy) original
-    datani qo'shadi, feature'larni quradi va ``fold`` ustunini belgilaydi."""
+    """train/test'ni yuklaydi, (ixtiyoriy) original datani qo'shadi, target'ni
+    encode qiladi, feature'larni quradi va ``fold`` ustunini belgilaydi.
+
+    MUHIM: ``encode_target()`` ``merge_original()`` dan KEYIN chaqiriladi.
+    Aks holda ``train["Status"]`` (allaqachon ``int8``) va ``original["Status"]``
+    (hali ``"C"/"CL"/"D"`` satr) turli tipda birlashib, ``concat`` natijasida
+    ustun ``object`` (aralash int+str) bo'lib qoladi va ``StratifiedKFold``
+    "Supported target types" xatosi bilan portlaydi.
+    """
     train, test = load_raw(cfg)
-    train = encode_target(train, cfg)
 
     if cfg.data.use_original:
         original = load_original(cfg)
         train = merge_original(train, original)
     else:
         train["is_original"] = 0
+
+    train = encode_target(train, cfg)
 
     fe = FeatureEngineer(cfg)
     train = fe.fit_transform(train)
@@ -89,13 +120,18 @@ def prepare_train_test(cfg: Config) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def _align_proba_columns(proba: np.ndarray, classes_: np.ndarray, n_classes: int) -> np.ndarray:
-    """``model.classes_`` ba'zi fold'da to'liq bo'lmasa (kam ehtimol), ustunlarni to'g'ri joyga qo'yadi."""
-    if len(classes_) == n_classes and np.array_equal(classes_, np.arange(n_classes)):
-        return proba
-    aligned = np.zeros((proba.shape[0], n_classes))
-    for i, c in enumerate(classes_):
-        aligned[:, int(c)] = proba[:, i]
-    return aligned
+    """``model.classes_`` ba'zi fold'da to'liq bo'lmasa (kam ehtimol), ustunlarni to'g'ri joyga qo'yadi.
+
+    Qatorlarni ham 1.0 ga normalizatsiya qiladi — XGBoost'ning ``float32``
+    softmax chiqishi ba'zan ``~1e-7`` chetga chiqadi, sklearn ``log_loss``
+    esa bunga ogohlantirish beradi (natija o'zi to'g'ri, lekin shovqinli).
+    """
+    if not (len(classes_) == n_classes and np.array_equal(classes_, np.arange(n_classes))):
+        aligned = np.zeros((proba.shape[0], n_classes))
+        for i, c in enumerate(classes_):
+            aligned[:, int(c)] = proba[:, i]
+        proba = aligned
+    return proba / proba.sum(axis=1, keepdims=True)
 
 
 @dataclass
@@ -104,14 +140,32 @@ class CVResult:
     oof_proba: np.ndarray
     cv_log_loss: float
     fold_log_losses: list[float]
+    models: list[Any] | None = field(default=None, repr=False)
 
 
-def run_cv(model_builder, train: pd.DataFrame, feature_cols: list[str], cfg: Config, name: str) -> CVResult:
+def run_cv(
+    model_builder: Callable[[], Any],
+    train: pd.DataFrame,
+    feature_cols: list[str],
+    cfg: Config,
+    name: str,
+    fit_kwargs_fn: Callable[[pd.DataFrame, pd.Series], dict[str, Any]] | None = None,
+    sample_weight_fn: Callable[[pd.Series], np.ndarray] | None = None,
+    save_models: bool = False,
+    log_progress: bool = True,
+) -> CVResult:
     """``model_builder()`` bilan StratifiedKFold CV yuritadi, OOF ehtimolliklarni qaytaradi.
 
     ``model_builder`` har chaqirilganda YANGI, fit qilinmagan model
     qaytaradigan callable bo'lishi kerak. Baholash faqat ``is_original == 0``
     (musobaqa) qatorlarda qilinadi.
+
+    ``fit_kwargs_fn(X_val, y_val) -> dict`` — LightGBM/XGBoost/CatBoost uchun
+    fold ICHIDA early stopping qilish uchun ``eval_set`` (yoki ekvivalenti)
+    beradi (reja hujjati, Faza 5: "Har biriga early_stopping fold ichida").
+    Izoh: bu shu fold'ning validatsiya qismidan foydalanadi — Kaggle
+    amaliyotida keng tarqalgan yondashuv, lekin qat'iy ma'noda "to'xtash
+    nuqtasi" val'ni ozgina ko'rgan bo'ladi (nested CV emas).
     """
     target = cfg.data.target
     n_classes = len(cfg.data.classes)
@@ -119,6 +173,7 @@ def run_cv(model_builder, train: pd.DataFrame, feature_cols: list[str], cfg: Con
 
     oof_proba = np.full((len(train), n_classes), np.nan)
     fold_losses = []
+    fold_models = [] if save_models else None
 
     for fold in range(cfg.n_folds):
         val_mask = (train["fold"] == fold).to_numpy()
@@ -128,18 +183,27 @@ def run_cv(model_builder, train: pd.DataFrame, feature_cols: list[str], cfg: Con
         X_fit, y_fit = train.loc[fit_mask, feature_cols], train.loc[fit_mask, target]
         X_val, y_val = train.loc[val_mask, feature_cols], train.loc[val_mask, target]
 
+        fit_kwargs = fit_kwargs_fn(X_val, y_val) if fit_kwargs_fn is not None else {}
+        if sample_weight_fn is not None:
+            fit_kwargs["sample_weight"] = sample_weight_fn(y_fit)
+
         model = model_builder()
-        model.fit(X_fit, y_fit)
-        proba = _align_proba_columns(model.predict_proba(X_val), model.classes_, n_classes)
+        model.fit(X_fit, y_fit, **fit_kwargs)
+        raw_proba = model.predict_proba(X_val).astype("float64")  # float32 (XGBoost) rounding shovqinini kamaytiradi
+        proba = _align_proba_columns(raw_proba, model.classes_, n_classes)
 
         oof_proba[np.flatnonzero(val_mask)] = proba
         fold_loss = log_loss(y_val, proba, labels=list(range(n_classes)))
         fold_losses.append(fold_loss)
-        logger.info("%s | fold %d: log_loss=%.5f (n_fit=%d, n_val=%d)", name, fold, fold_loss, fit_mask.sum(), val_mask.sum())
+        if save_models:
+            fold_models.append(model)
+        if log_progress:
+            logger.info("%s | fold %d: log_loss=%.5f (n_fit=%d, n_val=%d)", name, fold, fold_loss, fit_mask.sum(), val_mask.sum())
 
     overall_loss = log_loss(train.loc[comp_mask, target], oof_proba[comp_mask], labels=list(range(n_classes)))
-    logger.info("%s | CV log_loss=%.5f (+/- %.5f)", name, overall_loss, float(np.std(fold_losses)))
-    return CVResult(name=name, oof_proba=oof_proba, cv_log_loss=overall_loss, fold_log_losses=fold_losses)
+    if log_progress:
+        logger.info("%s | CV log_loss=%.5f (+/- %.5f)", name, overall_loss, float(np.std(fold_losses)))
+    return CVResult(name=name, oof_proba=oof_proba, cv_log_loss=overall_loss, fold_log_losses=fold_losses, models=fold_models)
 
 
 def save_oof(result: CVResult, cfg: Config) -> Path:
@@ -175,6 +239,127 @@ BASELINE_BUILDERS = {
     "logreg": build_logreg_model,
     "hgb": build_hgb_model,
 }
+
+
+def _pop_boosting_meta(params: dict[str, Any], n_estimators_key: str) -> tuple[dict[str, Any], int, int]:
+    """``config.yaml`` dagi model bo'limidan iteratsiya soni va early-stopping
+    parametrini ajratib oladi (ular constructor'ga boshqacha uzatiladi/uzatilmaydi)."""
+    params = dict(params)
+    n_estimators = params.pop(n_estimators_key)
+    early_stopping_rounds = params.pop("early_stopping_rounds")
+    return params, n_estimators, early_stopping_rounds
+
+
+def build_lgbm_model(cfg: Config, **overrides: Any):
+    import lightgbm as lgb
+
+    params, n_estimators, _ = _pop_boosting_meta(cfg.models["lgbm"], "n_estimators")
+    params.update(overrides)
+    return lgb.LGBMClassifier(n_estimators=n_estimators, random_state=cfg.seed, **params)
+
+
+def build_xgb_model(cfg: Config, **overrides: Any):
+    import xgboost as xgb
+
+    params, n_estimators, early_stopping_rounds = _pop_boosting_meta(cfg.models["xgb"], "n_estimators")
+    params.update(overrides)
+    return xgb.XGBClassifier(
+        n_estimators=n_estimators, early_stopping_rounds=early_stopping_rounds, random_state=cfg.seed, **params
+    )
+
+
+def build_catboost_model(cfg: Config, **overrides: Any):
+    import catboost as cb
+
+    params, iterations, early_stopping_rounds = _pop_boosting_meta(cfg.models["catboost"], "iterations")
+    params.update(overrides)
+    return cb.CatBoostClassifier(
+        iterations=iterations, early_stopping_rounds=early_stopping_rounds, random_seed=cfg.seed, **params
+    )
+
+
+def make_lgbm_fit_kwargs(early_stopping_rounds: int) -> Callable[[pd.DataFrame, pd.Series], dict[str, Any]]:
+    """LightGBM 4.x sklearn API'sida ``eval_set`` o'rniga ``eval_X``/``eval_y`` tavsiya etiladi."""
+    def _fn(X_val: pd.DataFrame, y_val: pd.Series) -> dict[str, Any]:
+        import lightgbm as lgb
+
+        return {"eval_X": X_val, "eval_y": y_val, "callbacks": [lgb.early_stopping(early_stopping_rounds, verbose=False)]}
+    return _fn
+
+
+def xgb_fit_kwargs(X_val: pd.DataFrame, y_val: pd.Series) -> dict[str, Any]:
+    return {"eval_set": [(X_val, y_val)], "verbose": False}
+
+
+def make_catboost_fit_kwargs(cat_features: list[str]) -> Callable[[pd.DataFrame, pd.Series], dict[str, Any]]:
+    def _fn(X_val: pd.DataFrame, y_val: pd.Series) -> dict[str, Any]:
+        return {"eval_set": (X_val, y_val), "cat_features": cat_features}
+    return _fn
+
+
+def get_feature_importance(models: list[Any], feature_cols: list[str]) -> pd.DataFrame:
+    """Fold modellaridan o'rtacha ``feature_importances_`` ni hisoblaydi
+    (LightGBM/XGBoost/CatBoost sklearn API — barchasida shu atribut bor)."""
+    importances = np.array([m.feature_importances_ for m in models], dtype=float)
+    return pd.DataFrame({
+        "feature": feature_cols,
+        "importance_mean": importances.mean(axis=0),
+        "importance_std": importances.std(axis=0),
+    }).sort_values("importance_mean", ascending=False).reset_index(drop=True)
+
+
+def tune_lgbm(
+    train: pd.DataFrame,
+    feature_cols: list[str],
+    cfg: Config,
+    n_trials: int = 30,
+    timeout: int | None = None,
+):
+    """Optuna bilan LightGBM giperparametrlarini CV log loss bo'yicha sozlaydi.
+
+    Har bir trial to'liq ``cfg.n_folds`` marta CV yuritadi (fold ichida
+    early stopping bilan) — sekinroq, lekin nested-CV shart emas, chunki
+    baholash mezoni (CV log loss) allaqachon barcha fold'lar bo'yicha
+    o'rtachalangan.
+    """
+    import optuna
+
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    early_stopping_rounds = cfg.models["lgbm"]["early_stopping_rounds"]
+    fit_kwargs_fn = make_lgbm_fit_kwargs(early_stopping_rounds)
+    n_classes = len(cfg.data.classes)
+
+    def objective(trial: optuna.Trial) -> float:
+        import lightgbm as lgb
+
+        params = {
+            "objective": "multiclass",
+            "num_class": n_classes,
+            "metric": "multi_logloss",
+            "verbose": -1,
+            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.1, log=True),
+            "num_leaves": trial.suggest_int("num_leaves", 15, 127),
+            "max_depth": trial.suggest_int("max_depth", 3, 10),
+            "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
+            "subsample": trial.suggest_float("subsample", 0.5, 1.0),
+            "subsample_freq": 1,
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.4, 1.0),
+            "reg_alpha": trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
+        }
+
+        def builder():
+            return lgb.LGBMClassifier(n_estimators=5000, random_state=cfg.seed, **params)
+
+        result = run_cv(
+            builder, train, feature_cols, cfg, name=f"lgbm_trial{trial.number}",
+            fit_kwargs_fn=fit_kwargs_fn, log_progress=False,
+        )
+        return result.cv_log_loss
+
+    study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=cfg.seed))
+    study.optimize(objective, n_trials=n_trials, timeout=timeout, show_progress_bar=False)
+    return study
 
 
 @timer

@@ -183,14 +183,17 @@ cirrhosis-outcomes/
 
 ### Faza 5 — Model tuning
 
-- [ ] LightGBM — `objective='multiclass'`, `num_class=3`, `metric='multi_logloss'`
-- [ ] XGBoost — `objective='multi:softprob'`
-- [ ] CatBoost — kategoriallarni to'g'ridan-to'g'ri berish
-- [ ] Har biriga `early_stopping` fold ichida
-- [ ] Optuna bilan tuning (kamida LightGBM uchun)
-- [ ] `class_weight` / `sample_weight` ni `CL` uchun sinab ko'rish
-- [ ] Original datani qo'shgan va qo'shmagan holatni solishtirish
-- [ ] Feature importance grafigi — `N_Days` dominantligini tekshirish
+- [x] LightGBM — `objective='multiclass'`, `num_class=3`, `metric='multi_logloss'`
+- [x] XGBoost — `objective='multi:softprob'`
+- [x] CatBoost — kategoriallarni to'g'ridan-to'g'ri berish (`cat_features`, `NaN`→`"missing"`)
+- [x] Har biriga `early_stopping` fold ichida (`run_cv(fit_kwargs_fn=...)`)
+- [x] Optuna bilan tuning (kamida LightGBM uchun) — 25 trial, `CV 0.36880 -> 0.36288`, `config.yaml` yangilandi
+- [x] `class_weight` / `sample_weight` ni `CL` uchun sinab ko'rish — yordam bermadi (umumiy CV yomonlashdi), lekin natija jadvalda saqlandi
+- [x] Original datani qo'shgan va qo'shmagan holatni solishtirish — barqaror yordam berdi (~0.003-0.004), `use_original: true` ga o'zgartirildi
+- [x] Feature importance grafigi — `N_Days` dominantligini tekshirish — **dominant emas**, `Platelets`/`Age` bilan bir xil darajada
+- [x] **Kutilmagan topilma:** `src/features.py` dagi qo'shimcha feature'lar (log1p/nisbat/klinik ball) daraxt modellari uchun CV'ni yomonlashtirdi — "baza" (faqat categorical encoding) eng yaxshi natija berdi
+- [x] To'liq tahlil: `notebooks/03_experiments.ipynb` (bajarilgan, xatosiz)
+- [x] **Qo'shimcha (rejadan tashqari, foydalanuvchi so'rovi bo'yicha):** `notebooks/04_kaggle_submission.ipynb` — Kaggle'ga to'g'ridan-to'g'ri yuklanadigan, mustaqil (src/ import qilmaydi), sodda va tushunarli (Mohirdev kursi uchun) yagona notebook; lokal ma'lumotda tekshirildi, xuddi shu CV=0.36288 natijani qaytardi
 
 ### Faza 6 — Evaluation
 
@@ -231,12 +234,18 @@ Har bir eksperimentdan keyin shu jadvalni to'ldirib boring:
 | 0 | Dummy | — | yo'q | 0.72352 ± 0.00043 | | pol raqami (nazariy: sinf chastotalari entropiyasi ≈0.722, mos keladi) |
 | 1 | LogReg | baza (30 raqamli ustun, median impute) | yo'q | 0.44363 ± 0.01052 | | |
 | 2 | HGB | baza (30 raqamli ustun, NaN'siz impute) | yo'q | 0.39543 ± 0.00844 | | `outputs/submissions/baseline_hgb.csv` tayyor, Kaggle'ga hali yuklanmadi |
-| 3 | LightGBM | baza | yo'q | | | |
-| 4 | LightGBM | + log | yo'q | | | |
-| 5 | LightGBM | + log | ha | | | |
-| 6 | XGBoost | eng yaxshi | ha | | | |
-| 7 | CatBoost | eng yaxshi | ha | | | |
-| 8 | Blend | — | ha | | | |
+| 3 | LightGBM | baza (18 feat, categorical encoding) | yo'q | 0.37235 ± 0.00891 | | |
+| 4 | LightGBM | + log (23 feat) | yo'q | 0.37372 ± 0.00939 | | log1p daraxt modeliga yordam bermadi (yomonlashdi) |
+| 5 | LightGBM | + log (23 feat) | ha | 0.37003 ± 0.00900 | | |
+| 6 | LightGBM | full (30 feat, barcha guruh) | yo'q | 0.37636 ± 0.00918 | | eng ko'p feature, eng yomon natija (daraxt modeli uchun) |
+| 7 | LightGBM | full (30 feat) | ha | 0.37293 ± 0.00962 | | |
+| 8 | LightGBM | baza (18 feat) | ha | 0.36880 ± 0.00853 | | eng yaxshi feature to'plami (tuning'gacha) |
+| 9 | LightGBM | baza, `class_weight="balanced"` | ha | 0.40050 | | `CL` uchun yaxshi, umumiy uchun yomon (rad etildi, izoh: 03_experiments.ipynb §2) |
+| 10 | LightGBM | baza, `class_weight={0:1,1:10,2:1}` | ha | 0.38379 | | xuddi shunday — umumiy metrikaga mos emas |
+| 11 | XGBoost | baza (18 feat), early stopping | ha | 0.36646 ± 0.00912 | | ikkinchi eng yaxshi yagona model |
+| 12 | CatBoost | baza (18 feat), xom kategorial | ha | 0.37894 ± 0.00930 | | |
+| 13 | **LightGBM (Optuna, 25 trial)** | **baza (18 feat)** | **ha** | **0.36288 ± 0.00926** | | **eng yaxshi yagona model** — `config.yaml` ga yozildi |
+| 14 | Blend | — | ha | | | Faza 7 |
 
 ---
 

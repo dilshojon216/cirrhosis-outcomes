@@ -17,7 +17,8 @@ data:
   id_col: id
   target: Status
   classes: [C, CL, D]           # tartib submission ustunlari bilan bir xil
-  use_original: false           # Faza 5 da solishtiriladi
+  use_original: true            # Faza 5da solishtirildi: original UCI qo'shish barqaror yordam berdi
+                                 # (LightGBM: 0.37235 -> 0.36880 "baza" feature to'plamida, 03_experiments.ipynb)
   numeric_cols:
     - N_Days
     - Age
@@ -52,19 +53,23 @@ models:
     min_samples_leaf: 20
     l2_regularization: 0.0
 
-  lgbm:
+  lgbm:                         # Optuna bilan sozlandi (Faza 5, 03_experiments.ipynb, 25 trial,
+                                 # "baza"+original feature to'plamida): CV log_loss 0.36880 -> 0.36288.
+                                 # Sozlanmagan defaultlar edi: learning_rate=0.03, num_leaves=31,
+                                 # max_depth=-1, min_child_samples=20, subsample=0.8, colsample_bytree=0.5,
+                                 # reg_alpha=0.1, reg_lambda=1.0
     objective: multiclass
     num_class: 3
     metric: multi_logloss
-    learning_rate: 0.03
-    num_leaves: 31
-    max_depth: -1
-    min_child_samples: 20
-    subsample: 0.8
+    learning_rate: 0.015982777382214743
+    num_leaves: 72
+    max_depth: 3
+    min_child_samples: 24
+    subsample: 0.5902742208077648
     subsample_freq: 1
-    colsample_bytree: 0.5
-    reg_alpha: 0.1
-    reg_lambda: 1.0
+    colsample_bytree: 0.40411832025914196
+    reg_alpha: 0.5531279368834987
+    reg_lambda: 0.0035312541987781885
     n_estimators: 5000
     early_stopping_rounds: 200
     verbose: -1
