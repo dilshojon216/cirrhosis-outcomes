@@ -229,6 +229,74 @@ def save_oof(result: CVResult, cfg: Config) -> Path:
     return path
 
 
+def save_fold_models(models: list[Any], cfg: Config, name: str) -> list[Path]:
+    """Har bir fold modelini ``models/<name>_fold<i>.pkl`` ga saqlaydi (``joblib``).
+
+    ``src/predict.py`` shu fayllarni o'qib, qayta o'qitmasdan bashorat qiladi.
+    """
+    import joblib
+
+    cfg.paths.models_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for i, model in enumerate(models):
+        path = cfg.paths.models_dir / f"{name}_fold{i}.pkl"
+        joblib.dump(model, path)
+        paths.append(path)
+    logger.info("save_fold_models: %d model -> %s", len(paths), cfg.paths.models_dir)
+    return paths
+
+
+def load_fold_models(cfg: Config, name: str) -> list[Any]:
+    """``save_fold_models()`` bilan saqlangan fold modellarini o'qiydi (fold tartibida).
+
+    Xavfsizlik izohi: ``joblib.load`` pickle orqali o'qiydi (arbitrary code
+    execution xavfi tashqi/ishonchsiz manbadan yuklaganda). Bu yerda fayllar
+    faqat shu loyihaning o'zi (``save_fold_models``) tomonidan lokal
+    ``models/`` papkasiga yozilgan — tashqi/ishonchsiz manbadan yuklanmaydi.
+    """
+    import joblib
+
+    paths = sorted(
+        cfg.paths.models_dir.glob(f"{name}_fold*.pkl"),
+        key=lambda p: int(p.stem.rsplit("fold", 1)[1]),
+    )
+    if not paths:
+        raise FileNotFoundError(
+            f"'{name}' uchun saqlangan model topilmadi ({cfg.paths.models_dir}). "
+            "Avval `python -m src.train` (yoki `make train`) ishga tushiring."
+        )
+    return [joblib.load(p) for p in paths]
+
+
+# Faza 5/6/7 da tanlangan g'olib konfiguratsiya — production model shu bilan o'qitiladi.
+FINAL_MODEL_NAME = "lgbm_final"
+FINAL_FEATURE_GROUPS = ("categorical",)
+
+
+def train_final_model(cfg: Config) -> CVResult:
+    """Yakuniy production model: tuned LightGBM, "baza" feature to'plami
+    (faqat categorical encoding) + original UCI data (``cfg.data.use_original``).
+
+    Bu 03_experiments.ipynb/07_ensemble.ipynb da tanlangan g'olib konfiguratsiya:
+    qo'shimcha feature'lar (log1p/nisbat/klinik ball) va ensemble/stacking
+    sinovdan o'tib, hech biri yakka sozlangan LightGBM'dan ustun kelmagan edi.
+    """
+    seed_everything(cfg.seed)
+    train, _ = prepare_train_test(cfg, groups=FINAL_FEATURE_GROUPS)
+    feature_cols = get_numeric_feature_cols(train, cfg)
+    early_stopping_rounds = cfg.models["lgbm"]["early_stopping_rounds"]
+
+    result = run_cv(
+        lambda: build_lgbm_model(cfg),
+        train, feature_cols, cfg, FINAL_MODEL_NAME,
+        fit_kwargs_fn=make_lgbm_fit_kwargs(early_stopping_rounds),
+        save_models=True,
+    )
+    save_oof(result, cfg)
+    save_fold_models(result.models, cfg, FINAL_MODEL_NAME)
+    return result
+
+
 def build_dummy_model() -> DummyClassifier:
     """Sinf chastotalari bilan bashorat qiluvchi pol (floor) modeli."""
     return DummyClassifier(strategy="prior")
@@ -405,8 +473,12 @@ def run_baselines(cfg: Config) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
+    # `python -m src.train` — production modelni o'qitadi va models/ ga saqlaydi
+    # (`make train`). Faza 4 baseline'larini alohida ishga tushirish uchun:
+    # `python -c "from src.config import load_config; from src.train import run_baselines; print(run_baselines(load_config()))"`
     from src.config import load_config
 
     cfg = load_config()
-    results = run_baselines(cfg)
-    print(results.to_string(index=False))
+    result = train_final_model(cfg)
+    print(f"Yakuniy model o'qitildi: CV log_loss = {result.cv_log_loss:.5f}")
+    print(f"Fold modellari: {cfg.paths.models_dir}/{FINAL_MODEL_NAME}_fold*.pkl")

@@ -217,14 +217,15 @@ cirrhosis-outcomes/
 
 ### Faza 8 — Production tozalash
 
-- [ ] `src/predict.py` — saqlangan fold modellardan submission
-- [ ] `Makefile`: `make setup`, `make train`, `make predict`
-- [ ] Bitta buyruqdan to'liq pipeline ishlashini tekshirish
-- [ ] `tests/test_features.py` — transformatsiya logikasi
-- [ ] `tests/test_pipeline.py` — kichik sample'da smoke test
-- [ ] `.github/workflows/ci.yml` — ruff + pytest
-- [ ] `README.md`: masala, data, yondashuv, CV jadvali, natija, qanday ishga tushirish
-- [ ] Repo'ni begona odam nol kontekst bilan ishga tushira olishini tekshirish
+- [x] `src/predict.py` — saqlangan fold modellardan submission (`load_fold_models`, `predict_proba_bagged`, `generate_submission`)
+- [x] `src/train.py`: `save_fold_models()`/`load_fold_models()`/`train_final_model()` qo'shildi — production model `models/lgbm_final_fold*.pkl` ga saqlanadi
+- [x] `Makefile`: `make setup`, `make data`, `make train`, `make predict`, `make test`, `make lint`, `make pipeline`
+- [x] Bitta buyruqdan to'liq pipeline ishlashini tekshirish — `make train` + `make predict` qo'lda ishga tushirilib tasdiqlandi (`submission.csv` == `07_ensemble.ipynb` natijasi bilan **bit-bit bir xil**)
+- [x] `tests/test_features.py` — transformatsiya logikasi (17 test, `conftest.py` fixture'lari bilan)
+- [x] `tests/test_pipeline.py` — kichik sintetik sample'da to'liq pipeline smoke test (4 test)
+- [x] `.github/workflows/ci.yml` — ruff + pytest (Python 3.12, haqiqiy ma'lumotsiz — sintetik fixture'lar bilan)
+- [x] `README.md`: masala, data, yondashuv, CV jadvali, natija, qanday ishga tushirish
+- [x] Repo'ni begona odam nol kontekst bilan ishga tushira olishini tekshirish — `python3.12 -m venv` + `pip install -r requirements.txt` (README'dagi aynan `make setup` yo'li, `uv` EMAS) alohida, toza `/tmp` venv'da sinaldi: 21/21 test o'tdi, `ruff check` xatosiz
 
 ---
 
