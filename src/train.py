@@ -96,9 +96,18 @@ def make_folds(df: pd.DataFrame, cfg: Config) -> np.ndarray:
     return folds
 
 
-def prepare_train_test(cfg: Config) -> tuple[pd.DataFrame, pd.DataFrame]:
+def prepare_train_test(
+    cfg: Config, groups: tuple[str, ...] | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """train/test'ni yuklaydi, (ixtiyoriy) original datani qo'shadi, target'ni
     encode qiladi, feature'larni quradi va ``fold`` ustunini belgilaydi.
+
+    ``groups`` — ``FeatureEngineer``ga uzatiladigan feature guruhlari
+    (``src/features.py``, ``FEATURE_GROUPS``). ``None`` bo'lsa barcha guruh
+    qo'llanadi (standart). Faza 5/6/7 da eng yaxshi natija bergan
+    konfiguratsiya — ``groups=("categorical",)`` ("baza") + ``use_original=True`` —
+    chunki qo'shimcha feature'lar (log1p, nisbat, ...) daraxt modellari uchun
+    CV'ni yomonlashtirgan (``03_experiments.ipynb``, §1).
 
     MUHIM: ``encode_target()`` ``merge_original()`` dan KEYIN chaqiriladi.
     Aks holda ``train["Status"]`` (allaqachon ``int8``) va ``original["Status"]``
@@ -116,7 +125,7 @@ def prepare_train_test(cfg: Config) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     train = encode_target(train, cfg)
 
-    fe = FeatureEngineer(cfg)
+    fe = FeatureEngineer(cfg, groups=groups) if groups is not None else FeatureEngineer(cfg)
     train = fe.fit_transform(train)
     test = fe.transform(test)
 

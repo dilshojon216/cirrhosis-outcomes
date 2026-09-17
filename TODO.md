@@ -207,11 +207,13 @@ cirrhosis-outcomes/
 
 ### Faza 7 — Ensemble
 
-- [ ] 3 model OOF'ini yuklab, oddiy o'rtacha blend
-- [ ] Vaznli blend — vaznlarni OOF'da optimallashtirish (`scipy.optimize`)
-- [ ] Stacking: OOF ehtimolliklar ustiga LogisticRegression meta-model
-- [ ] Eng yaxshi variantni tanlash va sababi bilan yozib qo'yish
-- [ ] Yakuniy submission generatsiyasi
+- [x] 3 model OOF'ini yuklab, oddiy o'rtacha blend — `0.36574`, yakka `lgbm_tuned` (`0.36288`)dan **yomonroq** (`catboost` zaifligi tortadi)
+- [x] Vaznli blend — vaznlarni OOF'da optimallashtirish (`scipy.optimize`) — `lgbm=0.90/xgb=0.10/catboost=0.00`, natija `0.36284` (statistik ahamiyatsiz farq)
+- [x] Stacking: OOF ehtimolliklar ustiga LogisticRegression meta-model — `0.38525`, **eng yomon natija** (feature'lar juda korrelyatsiyalangan)
+- [x] Eng yaxshi variantni tanlash va sababi bilan yozib qo'yish — **yakka `lgbm_tuned` tanlandi**: blend statistik farqlanmaydi, stacking/oddiy blend yomonlashtiradi, soddalik ustuvor
+- [x] Yakuniy submission generatsiyasi — `outputs/submissions/final_lgbm.csv` (5-fold bagging, `np.clip` bilan)
+- [x] To'liq tahlil: `notebooks/07_ensemble.ipynb` (bajarilgan, xatosiz)
+- [x] **Bug fix (ishlab chiqish paytida topildi):** `prepare_train_test()` doim barcha feature guruhini qo'llardi — g'olib "baza" konfiguratsiya (`groups=("categorical",)`) uchun `groups` parametri qo'shildi, aks holda yakuniy submission noto'g'ri feature to'plamida o'qitilardi (qayta tekshiruvda `0.36745` chiqib, `0.36288` bilan mos kelmagani orqali aniqlandi)
 
 ### Faza 8 — Production tozalash
 
