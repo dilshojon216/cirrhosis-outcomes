@@ -197,12 +197,13 @@ cirrhosis-outcomes/
 
 ### Faza 6 — Evaluation
 
-- [ ] `src/evaluate.py`: umumiy va **sinf bo'yicha** log loss
-- [ ] Confusion matrix (argmax bo'yicha)
-- [ ] Kalibratsiya egri chizig'i har bir sinf uchun
-- [ ] `CL` sinfida model qanday xato qilayotganini alohida tahlil
-- [ ] Slice tahlili: `Stage` va `Sex` bo'yicha log loss
-- [ ] CV standart og'ishini yozish — yaxshilanish shovqindan kattami
+- [x] `src/evaluate.py`: umumiy va **sinf bo'yicha** log loss — `overall_log_loss()`, `per_class_log_loss()`
+- [x] Confusion matrix (argmax bo'yicha) — `confusion_matrix_df()`
+- [x] Kalibratsiya egri chizig'i har bir sinf uchun — `calibration_data()`; barcha 3 sinf yaxshi kalibratsiyalangan (diagonalga yaqin)
+- [x] `CL` sinfida model qanday xato qilayotganini alohida tahlil — `cl_error_analysis()`: argmax bo'yicha atigi 21.8% to'g'ri, lekin ehtimollik taqsimoti yaxshi kalibratsiyalangan (model xatosi emas, muammoning tabiati)
+- [x] Slice tahlili: `Stage` va `Sex` bo'yicha log loss — `slice_log_loss()`; Stage bilan monoton oshadi (0.18→0.45), Sex'da erkaklar guruhida yuqoriroq (kichik n=608, ehtiyotkorlik bilan)
+- [x] CV standart og'ishini yozish — yaxshilanish shovqindan kattami — `is_improvement_significant()`: XGBoost vs tuned LightGBM farqi (0.36646→0.36288) shovqin ichida (statistik jihatdan ajratib bo'lmaydi)
+- [x] To'liq tahlil: `notebooks/06_evaluation.ipynb` (bajarilgan, xatosiz, 5 ta grafik `outputs/figures/` ga saqlandi)
 
 ### Faza 7 — Ensemble
 
